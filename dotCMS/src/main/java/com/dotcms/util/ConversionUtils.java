@@ -2,16 +2,23 @@ package com.dotcms.util;
 
 import com.dotmarketing.db.DbConnectionFactory;
 import com.dotmarketing.util.UtilMethods;
-
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.w3c.dom.Document;  // For working with the Document object
+import org.xml.sax.InputSource;  // For creating the InputSource from a StringReader
+import java.io.StringReader;  // For reading the XML string as a stream
+import javax.xml.parsers.DocumentBuilderFactory;  // For creating the DocumentBuilderFactory instance
+import javax.xml.parsers.DocumentBuilder;  // For creating the DocumentBuilder instance
+import javax.xml.parsers.ParserConfigurationException;  // In case of parsing exceptions
+import org.xml.sax.SAXException;  // In case of SAX parsing exceptions
+import java.io.IOException;  // For handling input/output exceptions
 
 /**
  * Utility class for conversion operations.
- * 
+ *
  * @author jsanca
  * @version 3.7
  * @since Jun 8, 2016
@@ -19,55 +26,85 @@ import java.util.function.Supplier;
 @SuppressWarnings("serial")
 public class ConversionUtils implements Serializable {
 
-    public static ConversionUtils INSTANCE =
-            new ConversionUtils();
+    public static ConversionUtils INSTANCE = new ConversionUtils();
 
     private ConversionUtils() {}
 
-	/**
-	 * Converts from the Original to Destiny bean using a converter.
-	 * 
-	 * @param origin
-	 *            - origin
-	 * @param converter
-	 *            - {@link Converter}
-	 * @param <O>
-	 * @param <D>
-	 * @return D
-	 */
-    public <O, D> D convert (final O origin,
-                             final Converter<O, D> converter) {
-
+    /**
+     * Converts from the Original to Destiny bean using a converter.
+     *
+     * @param origin
+     *            - origin
+     * @param converter
+     *            - {@link Converter}
+     * @param <O>
+     * @param <D>
+     * @return D
+     */
+    public <O, D> D convert(final O origin, final Converter<O, D> converter) {
         D d = null;
 
         if (null != origin && null != converter) {
-
             d = converter.convert(origin);
         }
 
         return d;
     } // convert
 
-	/**
-	 * Converts from the array of Original objects to Destiny beans using a
-	 * converter.
-	 *
-	 * Return a List
-	 * @param originArray - 
-	 * @param converter - 
-	 * @return
-	 */
-    public <O, D> List<D> convert (final O [] originArray,
-                                   final Converter<O, D> converter) {
+    // Process a string request parameter and parse the XML to return a string.
+    public Document parseData(String xml) {
+        // This is a simple example of how to parse XML from a string. This is not a secure way to parse XML.
+        // XXE Vulnerability Introduction
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature(
+            "http://apache.org/xml/features/disallow-doctype-decl",
+            true
+        ); // Disable DOCTYPE
+        factory.setFeature(
+            "http://xml.org/sax/features/external-general-entities",
+            false
+        ); // Disable external general entities
+        factory.setFeature(
+            "http://xml.org/sax/features/external-parameter-entities",
+            false
+        ); // Disable external parameter entities
+        factory.setNamespaceAware(true); // Optional, if needed for your use case
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        InputSource is = new InputSource(new StringReader(xml));
+        Document document = builder.parse(is);
 
+        return document
+    }
+
+    // Process a string request parameter and parse the XML to return a string.
+    public Document parseDataNew(String xml) {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        InputSource is = new InputSource(new StringReader(xmlInput));
+        Document document = builder.parse(is);
+
+        return document
+    }
+
+    /**
+     * Converts from the array of Original objects to Destiny beans using a
+     * converter.
+     *
+     * Return a List
+     * @param originArray -
+     * @param converter -
+     * @return
+     */
+    public <O, D> List<D> convert(
+        final O[] originArray,
+        final Converter<O, D> converter
+    ) {
         List<D> destinyList = null;
 
         if (null != originArray && null != converter) {
-
             destinyList = CollectionsUtils.getNewList();
 
             for (O origin : originArray) {
-
                 destinyList.add(converter.convert(origin));
             }
         }
@@ -75,298 +112,328 @@ public class ConversionUtils implements Serializable {
         return destinyList;
     } // convert
 
-	/**
-	 * Converts from the array of Original objects to Destiny beans using a
-	 * converter.
-	 * Returns an array
-	 *
-	 * @param originArray -
-	 * @param converter -
-	 * @return
-	 */
-	public <O, D> D[] convertToArray (final Converter<O, D> converter, final Class<D> clazz, final O... originArray) {
+    /**
+     * Converts from the array of Original objects to Destiny beans using a
+     * converter.
+     * Returns an array
+     *
+     * @param originArray -
+     * @param converter -
+     * @return
+     */
+    public <O, D> D[] convertToArray(
+        final Converter<O, D> converter,
+        final Class<D> clazz,
+        final O... originArray
+    ) {
+        final D[] destinyArray = (D[]) Array.newInstance(
+            clazz,
+            originArray.length
+        );
 
-		final D[] destinyArray =  (D[]) Array.newInstance(clazz, originArray.length);
+        for (int i = 0; i < originArray.length; ++i) {
+            destinyArray[i] = converter.convert(originArray[i]);
+        }
 
-		for (int i = 0; i < originArray.length; ++i) {
-
-			destinyArray[i] = converter.convert(originArray[i]);
-		}
-
-		return destinyArray;
-	} // convert
+        return destinyArray;
+    } // convert
 
     /**
-	 * Converts from the list of Original objects to Destiny beans using a
-	 * converter.
-	 * 
-	 * @param originList - 
-	 * @param converter - 
-	 * @return
-	 */
-	public <O, D> List<D> convert(final List<O> originList, final Converter<O, D> converter) {
+     * Converts from the list of Original objects to Destiny beans using a
+     * converter.
+     *
+     * @param originList -
+     * @param converter -
+     * @return
+     */
+    public <O, D> List<D> convert(
+        final List<O> originList,
+        final Converter<O, D> converter
+    ) {
+        List<D> destinyList = null;
 
-		List<D> destinyList = null;
+        if (null != originList && null != converter) {
+            destinyList = CollectionsUtils.getNewList();
 
-		if (null != originList && null != converter) {
+            for (O origin : originList) {
+                destinyList.add(converter.convert(origin));
+            }
+        }
 
-			destinyList = CollectionsUtils.getNewList();
+        return destinyList;
+    } // convert
 
-			for (O origin : originList) {
+    /**
+     *
+     * @param sLong
+     * @return
+     */
+    public static long toLong(final String sLong) {
+        return toLong(sLong, 0l);
+    }
 
-				destinyList.add(converter.convert(origin));
-			}
-		}
+    /**
+     * Converts the specified input value into an {@code long}. The input value
+     * can be a String or an instance of {@link Number}.
+     * @param input
+     *         - The value to convert.
+     * @param defaultLong
+     *        - The default value in case the input cannot be converted.
+     * @return long value
+     */
+    public static long toLong(final Object input, final Long defaultLong) {
+        long resultLong = defaultLong;
 
-		return destinyList;
-	} // convert
+        try {
+            if (UtilMethods.isSet(input)) {
+                if (input instanceof CharSequence) {
+                    resultLong = Long.parseLong(input.toString());
+                } else if (input instanceof Number) {
+                    resultLong = Number.class.cast(input).longValue();
+                }
+            }
+        } catch (NumberFormatException e) {
+            resultLong = defaultLong;
+        }
 
-	/**
-	 * 
-	 * @param sLong
-	 * @return
-	 */
-	public static long toLong (final String sLong) {
+        return resultLong;
+    }
 
-		return toLong(sLong, 0l);
-	}
+    /**
+     * Converts 1kb to 1024
+     * Converts 1mb to 1024 * 1024
+     * Converts 1gb to 1024 * 1024 * 1024
+     * @param humanDisplaySize String human display size such as 100, 1kb, 2mb, 3gb, etc
+     * @param defaultLong long default long in case the humanDisplaySize can not be parsed
+     * @return long
+     */
+    public static long toLongFromByteCountHumanDisplaySize(
+        final String humanDisplaySize,
+        final long defaultLong
+    ) {
+        if (
+            UtilMethods.isSet(humanDisplaySize) && humanDisplaySize.length() > 2
+        ) {
+            final String postfix = humanDisplaySize.substring(
+                humanDisplaySize.length() - 2
+            );
+            final String stringValue = humanDisplaySize.substring(
+                0,
+                humanDisplaySize.length() - 2
+            );
+            final long value = toLong(stringValue, defaultLong);
+            switch (postfix.toLowerCase()) {
+                case "kb":
+                    return value != defaultLong ? value * 1024 : defaultLong;
+                case "mb":
+                    return value != defaultLong
+                        ? value * 1024 * 1024
+                        : defaultLong;
+                case "gb":
+                    return value != defaultLong
+                        ? value * 1024 * 1024 * 1024
+                        : defaultLong;
+                default:
+                    return toLong(humanDisplaySize, defaultLong);
+            }
+        }
 
-	/**
-	 * Converts the specified input value into an {@code long}. The input value
-	 * can be a String or an instance of {@link Number}.
-	 * @param input
-	 *         - The value to convert.
-	 * @param defaultLong
-	 *        - The default value in case the input cannot be converted.
-	 * @return long value
-	 */
-	public static long toLong (final Object input, final Long defaultLong) {
+        return toLong(humanDisplaySize, defaultLong);
+    }
 
-		long resultLong = defaultLong;
+    /**
+     * Converts the specified input value into an {@code long}. The input value
+     * can be a String or an instance of {@link Number}.
+     * @param input
+     *         - The value to convert.
+     * @param defaultLong
+     *        - Supplier with the default value in case the input cannot be converted.
+     * @return long value
+     */
+    public static long toLong(
+        final Object input,
+        final Supplier<Long> defaultLong
+    ) {
+        long l = 0;
 
-		try {
-			if (UtilMethods.isSet(input)) {
-				if (input instanceof CharSequence) {
-					resultLong = Long.parseLong(input.toString());
-				} else if (input instanceof Number) {
-					resultLong = Number.class.cast(input).longValue();
-				}
-			}
-		} catch (NumberFormatException e) {
+        try {
+            if (UtilMethods.isSet(input)) {
+                if (input instanceof CharSequence) {
+                    l = Long.parseLong(input.toString());
+                } else if (input instanceof Number) {
+                    l = Number.class.cast(input).longValue();
+                } else {
+                    l = defaultLong.get();
+                }
+            }
+        } catch (NumberFormatException e) {
+            l = defaultLong.get();
+        }
 
-			resultLong = defaultLong;
-		}
+        return l;
+    }
 
-		return resultLong;
-	}
+    /**
+     * Converts the specified map value into an {@code int}.
+     *
+     * @param key
+     *            - The key to the map value.
+     * @param params
+     *            - The Map that contains the value to convert.
+     * @param defaultInt
+     *            - The default value in case the map doesn't have it, or if it
+     *            cannot be converted.
+     * @return The map value as {@code int}, or the default value.
+     */
+    public static int toInt(
+        final String key,
+        final Map<?, ?> params,
+        final int defaultInt
+    ) {
+        int result = defaultInt;
+        if (params.containsKey(key)) {
+            result = toInt(params.get(key).toString(), defaultInt);
+        }
+        return result;
+    }
 
-	/**
-	 * Converts 1kb to 1024
-	 * Converts 1mb to 1024 * 1024
-	 * Converts 1gb to 1024 * 1024 * 1024
-	 * @param humanDisplaySize String human display size such as 100, 1kb, 2mb, 3gb, etc
-	 * @param defaultLong long default long in case the humanDisplaySize can not be parsed
-	 * @return long
-	 */
-	public static long toLongFromByteCountHumanDisplaySize (final String humanDisplaySize, final long defaultLong) {
+    /**
+     * Converts the specified input value into an {@code int}. The input value
+     * can be a String or an instance of {@link Number}.
+     *
+     * @param input
+     *            - The value to convert.
+     * @param defaultInt
+     *            - The default value in case the input cannot be converted.
+     * @return The input as {@code int}, or the default value.
+     */
+    public static int toInt(final Object input, final int defaultInt) {
+        try {
+            if (input instanceof CharSequence) {
+                return Integer.parseInt(
+                    CharSequence.class.cast(input).toString()
+                );
+            } else if (input instanceof Number) {
+                return Number.class.cast(input).intValue();
+            } else {
+                return defaultInt;
+            }
+        } catch (NumberFormatException e) {
+            return defaultInt;
+        }
+    }
 
-		if (UtilMethods.isSet(humanDisplaySize) && humanDisplaySize.length() > 2) {
+    /**
+     * Converts the specified input value into an {@code float}. The input value
+     * can be a String or an instance of {@link Number}.
+     *
+     * @param input
+     *            - The value to convert.
+     * @param defaultInt
+     *            - The default value in case the input cannot be converted.
+     * @return The input as {@code int}, or the default value.
+     */
+    public static float toFloat(final Object input, final float defaultInt) {
+        try {
+            if (input instanceof CharSequence) {
+                return Float.parseFloat(
+                    CharSequence.class.cast(input).toString()
+                );
+            } else if (input instanceof Number) {
+                return Number.class.cast(input).floatValue();
+            } else {
+                return defaultInt;
+            }
+        } catch (NumberFormatException e) {
+            return defaultInt;
+        }
+    }
 
-			final String postfix     = humanDisplaySize.substring(humanDisplaySize.length()-2);
-			final String stringValue = humanDisplaySize.substring(0, humanDisplaySize.length()-2);
-			final long  value        = toLong(stringValue, defaultLong);
-			switch (postfix.toLowerCase()) {
+    /**
+     * Converts the specified input value into an {@code int}. The input value
+     * can be a String or an instance of {@link Number}.
+     *
+     * @param input
+     *            - The value to convert.
+     * @param defaultInt
+     *            - Supplier with the default value in case the input cannot be converted.
+     * @return The input as {@code int}, or the default value.
+     */
+    public static int toInt(
+        final Object input,
+        final Supplier<Integer> defaultInt
+    ) {
+        try {
+            if (input instanceof CharSequence) {
+                return Integer.parseInt(
+                    CharSequence.class.cast(input).toString()
+                );
+            } else if (input instanceof Number) {
+                return Number.class.cast(input).intValue();
+            } else {
+                return defaultInt.get();
+            }
+        } catch (NumberFormatException e) {
+            return defaultInt.get();
+        }
+    }
 
-				case "kb":
-					return value != defaultLong?  value * 1024: defaultLong;
+    /**
+     * Converts the specified map value into a {@code boolean}.
+     *
+     * @param key
+     *            - The key to the map value.
+     * @param params
+     *            - The Map that contains the value to convert.
+     * @param defaultBool
+     *            - The default value in case the map doesn't have it, or if it
+     *            cannot be converted.
+     * @return The map value as {@code boolean}, or the default value.
+     */
+    public static boolean toBoolean(
+        final String key,
+        final Map<?, ?> params,
+        final boolean defaultBool
+    ) {
+        boolean result = defaultBool;
+        if (params.containsKey(key)) {
+            result = toBoolean(params.get(key).toString(), defaultBool);
+        }
+        return result;
+    }
 
-				case "mb":
-					return value != defaultLong?  value * 1024 * 1024: defaultLong;
+    /**
+     * Converts the specified input into a {@code boolean}.
+     *
+     * @param strBool
+     *            - The String representation of the boolean.
+     * @param defaultBool
+     *            - The default value in case the input cannot be converted.
+     * @return The input as {@code defaultBool}, or the default value.
+     */
+    public static boolean toBoolean(
+        final String strBool,
+        final boolean defaultBool
+    ) {
+        try {
+            return Boolean.parseBoolean(strBool);
+        } catch (final Exception e) {
+            return defaultBool;
+        }
+    }
 
-				case "gb":
-					return value != defaultLong?  value * 1024 * 1024 * 1024: defaultLong;
-				default:
-					return toLong(humanDisplaySize, defaultLong);
-			}
-		}
-
-		return toLong(humanDisplaySize, defaultLong);
-	}
-
-	/**
-	 * Converts the specified input value into an {@code long}. The input value
-	 * can be a String or an instance of {@link Number}.
-	 * @param input
-	 *         - The value to convert.
-	 * @param defaultLong
-	 *        - Supplier with the default value in case the input cannot be converted.
-	 * @return long value
-	 */
-	public static long toLong (final Object input, final Supplier<Long> defaultLong) {
-
-		long l = 0;
-
-		try {
-			if (UtilMethods.isSet(input)) {
-				if (input instanceof CharSequence) {
-					l = Long.parseLong(input.toString());
-				} else if (input instanceof Number) {
-					l = Number.class.cast(input).longValue();
-				} else {
-					l = defaultLong.get();
-				}
-			}
-		} catch (NumberFormatException e) {
-
-			l = defaultLong.get();
-		}
-
-		return l;
-	}
-
-	/**
-	 * Converts the specified map value into an {@code int}.
-	 * 
-	 * @param key
-	 *            - The key to the map value.
-	 * @param params
-	 *            - The Map that contains the value to convert.
-	 * @param defaultInt
-	 *            - The default value in case the map doesn't have it, or if it
-	 *            cannot be converted.
-	 * @return The map value as {@code int}, or the default value.
-	 */
-	public static int toInt(final String key, final Map<?, ?> params, final int defaultInt) {
-		int result = defaultInt;
-		if (params.containsKey(key)) {
-			result = toInt(params.get(key).toString(), defaultInt);
-		}
-		return result;
-	}
-
-	/**
-	 * Converts the specified input value into an {@code int}. The input value
-	 * can be a String or an instance of {@link Number}.
-	 * 
-	 * @param input
-	 *            - The value to convert.
-	 * @param defaultInt
-	 *            - The default value in case the input cannot be converted.
-	 * @return The input as {@code int}, or the default value.
-	 */
-	public static int toInt(final Object input, final int defaultInt) {
-		try {
-			if (input instanceof CharSequence) {
-				return Integer.parseInt(CharSequence.class.cast(input).toString());
-			} else if (input instanceof Number) {
-				return Number.class.cast(input).intValue();
-			} else {
-				return defaultInt;
-			}
-		} catch (NumberFormatException e) {
-			return defaultInt;
-		}
-	}
-
-	/**
-	 * Converts the specified input value into an {@code float}. The input value
-	 * can be a String or an instance of {@link Number}.
-	 *
-	 * @param input
-	 *            - The value to convert.
-	 * @param defaultInt
-	 *            - The default value in case the input cannot be converted.
-	 * @return The input as {@code int}, or the default value.
-	 */
-	public static float toFloat(final Object input, final float defaultInt) {
-		try {
-			if (input instanceof CharSequence) {
-				return Float.parseFloat(CharSequence.class.cast(input).toString());
-			} else if (input instanceof Number) {
-				return Number.class.cast(input).floatValue();
-			} else {
-				return defaultInt;
-			}
-		} catch (NumberFormatException e) {
-			return defaultInt;
-		}
-	}
-
-	/**
-	 * Converts the specified input value into an {@code int}. The input value
-	 * can be a String or an instance of {@link Number}.
-	 *
-	 * @param input
-	 *            - The value to convert.
-	 * @param defaultInt
-	 *            - Supplier with the default value in case the input cannot be converted.
-	 * @return The input as {@code int}, or the default value.
-	 */
-	public static int toInt(final Object input, final Supplier<Integer> defaultInt) {
-		try {
-			if (input instanceof CharSequence) {
-				return Integer.parseInt(CharSequence.class.cast(input).toString());
-			} else if (input instanceof Number) {
-				return Number.class.cast(input).intValue();
-			} else {
-				return defaultInt.get();
-			}
-		} catch (NumberFormatException e) {
-			return defaultInt.get();
-		}
-	}
-
-	/**
-	 * Converts the specified map value into a {@code boolean}.
-	 * 
-	 * @param key
-	 *            - The key to the map value.
-	 * @param params
-	 *            - The Map that contains the value to convert.
-	 * @param defaultBool
-	 *            - The default value in case the map doesn't have it, or if it
-	 *            cannot be converted.
-	 * @return The map value as {@code boolean}, or the default value.
-	 */
-	public static boolean toBoolean(final String key, final Map<?, ?> params, final boolean defaultBool) {
-		boolean result = defaultBool;
-		if (params.containsKey(key)) {
-			result = toBoolean(params.get(key).toString(), defaultBool);
-		}
-		return result;
-	}
-
-	/**
-	 * Converts the specified input into a {@code boolean}.
-	 * 
-	 * @param strBool
-	 *            - The String representation of the boolean.
-	 * @param defaultBool
-	 *            - The default value in case the input cannot be converted.
-	 * @return The input as {@code defaultBool}, or the default value.
-	 */
-	public static boolean toBoolean(final String strBool, final boolean defaultBool) {
-		try {
-			return Boolean.parseBoolean(strBool);
-		} catch (final Exception e) {
-			return defaultBool;
-		}
-	}
-
-	/**
-	 * Based on a value obtained from database, if it is a boolean will return a cast.
-	 * Otherwise will use the {@link DbConnectionFactory} to determine the boolean value cross-db
-	 * @param objectBoolean {@link Object}
-	 * @return boolean
-	 */
-	public static boolean toBooleanFromDb(final Object objectBoolean) {
-
-		if (null == objectBoolean) {
-			return false;
-		}
-		return (objectBoolean instanceof Boolean)?
-				Boolean.class.cast(objectBoolean):
-				DbConnectionFactory.isDBTrue(objectBoolean.toString());
-	}
-
+    /**
+     * Based on a value obtained from database, if it is a boolean will return a cast.
+     * Otherwise will use the {@link DbConnectionFactory} to determine the boolean value cross-db
+     * @param objectBoolean {@link Object}
+     * @return boolean
+     */
+    public static boolean toBooleanFromDb(final Object objectBoolean) {
+        if (null == objectBoolean) {
+            return false;
+        }
+        return (objectBoolean instanceof Boolean)
+            ? Boolean.class.cast(objectBoolean)
+            : DbConnectionFactory.isDBTrue(objectBoolean.toString());
+    }
 }

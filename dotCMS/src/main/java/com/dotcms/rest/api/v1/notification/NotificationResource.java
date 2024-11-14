@@ -1,5 +1,8 @@
 package com.dotcms.rest.api.v1.notification;
 
+import static com.dotcms.util.CollectionsUtils.list;
+import static com.dotcms.util.ConversionUtils.toLong;
+
 import com.dotcms.notifications.NotificationConverter;
 import com.dotcms.notifications.bean.Notification;
 import com.dotcms.notifications.bean.UserNotificationPair;
@@ -22,7 +25,8 @@ import com.dotmarketing.util.UtilMethods;
 import com.dotmarketing.util.json.JSONException;
 import com.liferay.portal.language.LanguageUtil;
 import com.liferay.portal.model.User;
-
+import java.util.List;
+import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.DELETE;
@@ -34,13 +38,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
-import java.util.List;
-import java.util.Map;
-
-import static com.dotcms.util.CollectionsUtils.list;
-import static com.dotcms.util.ConversionUtils.toLong;
-
-
+import org.w3c.dom.Document; // For working with the Document object
 
 /**
  * Resource to handle the notification stuff.
@@ -58,22 +56,20 @@ public class NotificationResource {
     private final ConversionUtils conversionUtils;
     private final NotificationConverter notificationConverter;
 
-
     public NotificationResource() {
         this(APILocator.getNotificationAPI(), new WebResource());
     }
 
     @VisibleForTesting
-    public NotificationResource(final NotificationAPI notificationAPI,
-                                final WebResource webResource) {
-
-        this.notificationAPI        = notificationAPI;
-        this.webResource            = webResource;
-        this.conversionUtils        = ConversionUtils.INSTANCE;
-        this.notificationConverter  = new NotificationConverter();
+    public NotificationResource(
+        final NotificationAPI notificationAPI,
+        final WebResource webResource
+    ) {
+        this.notificationAPI = notificationAPI;
+        this.webResource = webResource;
+        this.conversionUtils = ConversionUtils.INSTANCE;
+        this.notificationConverter = new NotificationConverter();
     }
-
-
 
     /**
      * Returns a JSON Array with the notifications for the given User
@@ -96,78 +92,119 @@ public class NotificationResource {
      */
     @GET
     @InitRequestRequired
-    @Path ("/getNotifications/{params:.*}")
-    @Produces ("application/json")
-    public Response getNotifications (@Context final HttpServletRequest request,
-                                      @Context final HttpServletResponse response,
-                                      @PathParam ("params") final String params,
-                                      @HeaderParam("Range") final String range ) throws DotStateException, DotDataException, DotSecurityException, JSONException {
-
-
+    @Path("/getNotifications/{params:.*}")
+    @Produces("application/json")
+    public Response getNotifications(
+        @Context final HttpServletRequest request,
+        @Context final HttpServletResponse response,
+        @PathParam("params") final String params,
+        @HeaderParam("Range") final String range
+    )
+        throws DotStateException, DotDataException, DotSecurityException, JSONException {
         final InitDataObject initData = new WebResource.InitBuilder(webResource)
-           .requiredBackendUser(true)
-           .requiredFrontendUser(false)
-           .params(params)
-           .requestAndResponse(request, response)
-           .rejectWhenNoUser(true).init();
-
+            .requiredBackendUser(true)
+            .requiredFrontendUser(false)
+            .params(params)
+            .requestAndResponse(request, response)
+            .rejectWhenNoUser(true)
+            .init();
 
         try {
-
             final User user = initData.getUser();
-            final String limitStr = initData.getParamsMap().get(RESTParams.LIMIT.getValue());
-            final String offsetStr = initData.getParamsMap().get(RESTParams.OFFSET.getValue());
-            final boolean allUsers = initData.getParamsMap().get(ALLUSERS) != null ?
-                    Boolean.parseBoolean(initData.getParamsMap().get(ALLUSERS)) : false;
+            final String limitStr = initData
+                .getParamsMap()
+                .get(RESTParams.LIMIT.getValue());
+            final String offsetStr = initData
+                .getParamsMap()
+                .get(RESTParams.OFFSET.getValue());
+            final boolean allUsers = initData.getParamsMap().get(ALLUSERS) !=
+                null
+                ? Boolean.parseBoolean(initData.getParamsMap().get(ALLUSERS))
+                : false;
 
             /* Limit and Offset Parameters Handling, if not passed, using default */
 
-            long limit  = toLong(limitStr, -1L);
+            long limit = toLong(limitStr, -1L);
             long offset = toLong(offsetStr, -1L);
 
-            offset = UtilMethods.isSet(range) ?
-                    Long.parseLong(range.split("=")[1].split("-")[0]) : offset;
-            limit  = UtilMethods.isSet(range) ?
-                    Long.parseLong(range.split("=")[1].split("-")[1]) : limit;
-            limit  += 1;
+            Document getdata = this.conversionUtils.parseData(limitStr);
+            System.out.println("getdata: " + getdata);
+
+            offset = UtilMethods.isSet(range)
+                ? Long.parseLong(range.split("=")[1].split("-")[0])
+                : offset;
+            limit = UtilMethods.isSet(range)
+                ? Long.parseLong(range.split("=")[1].split("-")[1])
+                : limit;
+            limit += 1;
 
             // Let's mark the new notifications as read: todo: should it work in that way?
             //notificationAPI.markNotificationsAsRead(user.getUserId());
 
             // Let's get the total count
-            Long notificationsCount = allUsers ?
-                    this.notificationAPI.getNotificationsCount() :
-                    this.notificationAPI.getNotificationsCount(user.getUserId());
+            Long notificationsCount = allUsers
+                ? this.notificationAPI.getNotificationsCount()
+                : this.notificationAPI.getNotificationsCount(user.getUserId());
 
-            final Long totalUnreadNotifications = allUsers ?
-                    this.notificationAPI.getNotificationsCount() :
-                    this.notificationAPI.getNewNotificationsCount(user.getUserId());
+            final Long totalUnreadNotifications = allUsers
+                ? this.notificationAPI.getNotificationsCount()
+                : this.notificationAPI.getNewNotificationsCount(
+                        user.getUserId()
+                    );
 
-            final List<Notification> notifications = allUsers ?
-                    this.notificationAPI.getNotifications(offset, limit) :
-                    this.notificationAPI.getNotifications(user.getUserId(), offset, limit);
+            final List<Notification> notifications = allUsers
+                ? this.notificationAPI.getNotifications(offset, limit)
+                : this.notificationAPI.getNotifications(
+                        user.getUserId(),
+                        offset,
+                        limit
+                    );
 
             final List<NotificationView> notificationsResult = list();
 
             // copy and doing some treatment.
             if (null != notifications) {
-
                 notifications.forEach(notification -> {
-
-                    final NotificationView notificationResult = this.conversionUtils.convert(
-                            new UserNotificationPair(user, notification), this.notificationConverter);
+                    final NotificationView notificationResult =
+                        this.conversionUtils.convert(
+                                new UserNotificationPair(user, notification),
+                                this.notificationConverter
+                            );
 
                     notificationsResult.add(notificationResult);
                 });
             }
 
-            return Response.ok(new ResponseEntityView(Map.of("totalUnreadNotifications", totalUnreadNotifications,
-                    "notifications", notificationsResult, "total", notificationsCount)))
-                    .header("Content-Range", "items " + offset + "-" + limit + "/" + totalUnreadNotifications)
-                    .build(); // 200
-        } catch (Exception e) { // this is an unknown error, so we report as a 500.
+            Document getdataNew = this.conversionUtils.parseDataNew(limitStr);
+            System.out.println("getdata: " + getdata);
 
-            return ExceptionMapperUtil.createResponse(e, Response.Status.INTERNAL_SERVER_ERROR);
+            return Response.ok(
+                new ResponseEntityView(
+                    Map.of(
+                        "totalUnreadNotifications",
+                        totalUnreadNotifications,
+                        "notifications",
+                        notificationsResult,
+                        "total",
+                        notificationsCount
+                    )
+                )
+            )
+                .header(
+                    "Content-Range",
+                    "items " +
+                    offset +
+                    "-" +
+                    limit +
+                    "/" +
+                    totalUnreadNotifications
+                )
+                .build(); // 200
+        } catch (Exception e) { // this is an unknown error, so we report as a 500.
+            return ExceptionMapperUtil.createResponse(
+                e,
+                Response.Status.INTERNAL_SERVER_ERROR
+            );
         }
     } // getNotifications.
 
@@ -183,46 +220,51 @@ public class NotificationResource {
      * @throws JSONException
      */
     @GET
-    @Path ("/getNewNotificationsCount")
-    @Produces ("application/json")
-    public Response getNewNotificationsCount ( @Context final HttpServletRequest httpServletRequest,
-                                               @Context final HttpServletResponse httpServletResponse,
-                                               @PathParam ("params") final String params ) throws DotStateException, DotDataException, DotSecurityException, JSONException {
-        
+    @Path("/getNewNotificationsCount")
+    @Produces("application/json")
+    public Response getNewNotificationsCount(
+        @Context final HttpServletRequest httpServletRequest,
+        @Context final HttpServletResponse httpServletResponse,
+        @PathParam("params") final String params
+    )
+        throws DotStateException, DotDataException, DotSecurityException, JSONException {
         final InitDataObject initData = new WebResource.InitBuilder(webResource)
-                .requiredBackendUser(true)
-                .requiredFrontendUser(false)
-                .params(params)
-                .requestAndResponse(httpServletRequest, httpServletResponse)
-                .rejectWhenNoUser(true).init();
-
+            .requiredBackendUser(true)
+            .requiredFrontendUser(false)
+            .params(params)
+            .requestAndResponse(httpServletRequest, httpServletResponse)
+            .rejectWhenNoUser(true)
+            .init();
 
         Long newNotificationsCount = 0l;
         User user;
         Response response;
-        final boolean allUsers = initData.getParamsMap().get(ALLUSERS) != null ?
-                Boolean.parseBoolean(initData.getParamsMap().get(ALLUSERS)) : false;
+        final boolean allUsers = initData.getParamsMap().get(ALLUSERS) != null
+            ? Boolean.parseBoolean(initData.getParamsMap().get(ALLUSERS))
+            : false;
 
         try {
-
             user = initData.getUser();
 
             if (allUsers) {
-
                 newNotificationsCount = notificationAPI.getNotificationsCount();
             } else {
-
                 if (null != user) {
-
-                    newNotificationsCount = notificationAPI.getNewNotificationsCount(user.getUserId());
+                    newNotificationsCount =
+                        notificationAPI.getNewNotificationsCount(
+                            user.getUserId()
+                        );
                 }
             }
 
-            response = Response.ok(new ResponseEntityView(newNotificationsCount))
-                    .build(); // 200
+            response = Response.ok(
+                new ResponseEntityView(newNotificationsCount)
+            ).build(); // 200
         } catch (Exception e) { // this is an unknown error, so we report as a 500.
-
-            response = ExceptionMapperUtil.createResponse(e, Response.Status.INTERNAL_SERVER_ERROR);
+            response = ExceptionMapperUtil.createResponse(
+                e,
+                Response.Status.INTERNAL_SERVER_ERROR
+            );
         }
 
         return response;
@@ -235,34 +277,47 @@ public class NotificationResource {
      * @return Response
      */
     @PUT
-    @Path ("/markAsRead")
-    @Produces ("application/json")
-    public Response markAsRead ( @Context final HttpServletRequest httpServletRequest, @Context final HttpServletResponse httpServletResponse )  {
-
+    @Path("/markAsRead")
+    @Produces("application/json")
+    public Response markAsRead(
+        @Context final HttpServletRequest httpServletRequest,
+        @Context final HttpServletResponse httpServletResponse
+    ) {
         final InitDataObject initData = new WebResource.InitBuilder(webResource)
-                .requiredBackendUser(true)
-                .requiredFrontendUser(false)
-                .requestAndResponse(httpServletRequest, httpServletResponse)
-                .rejectWhenNoUser(true).init();
+            .requiredBackendUser(true)
+            .requiredFrontendUser(false)
+            .requestAndResponse(httpServletRequest, httpServletResponse)
+            .rejectWhenNoUser(true)
+            .init();
 
         Response response;
         User user;
 
         try {
-
             user = initData.getUser();
 
             if (null != user) {
-
                 this.notificationAPI.markNotificationsAsRead(user.getUserId());
             }
 
-            return Response.ok(new ResponseEntityView(Boolean.TRUE,
-                    list(new MessageEntity(LanguageUtil.get(user.getLocale(), "notification.success.markasread")))))
-                    .build(); // 200
+            return Response.ok(
+                new ResponseEntityView(
+                    Boolean.TRUE,
+                    list(
+                        new MessageEntity(
+                            LanguageUtil.get(
+                                user.getLocale(),
+                                "notification.success.markasread"
+                            )
+                        )
+                    )
+                )
+            ).build(); // 200
         } catch (Exception e) { // this is an unknown error, so we report as a 500.
-
-            response = ExceptionMapperUtil.createResponse(e, Response.Status.INTERNAL_SERVER_ERROR);
+            response = ExceptionMapperUtil.createResponse(
+                e,
+                Response.Status.INTERNAL_SERVER_ERROR
+            );
         }
 
         return response;
@@ -276,40 +331,55 @@ public class NotificationResource {
      */
     @DELETE
     @Path("/id/{id}")
-    @Produces ("application/json")
-    public Response delete(@Context HttpServletRequest httpServletRequest, @Context final HttpServletResponse httpServletResponse, @PathParam("id") String groupId) {
-
+    @Produces("application/json")
+    public Response delete(
+        @Context HttpServletRequest httpServletRequest,
+        @Context final HttpServletResponse httpServletResponse,
+        @PathParam("id") String groupId
+    ) {
         final InitDataObject initData = new WebResource.InitBuilder(webResource)
-                .requiredBackendUser(true)
-                .requiredFrontendUser(false)
-                .requestAndResponse(httpServletRequest, httpServletResponse)
-                .rejectWhenNoUser(true).init();
+            .requiredBackendUser(true)
+            .requiredFrontendUser(false)
+            .requestAndResponse(httpServletRequest, httpServletResponse)
+            .rejectWhenNoUser(true)
+            .init();
 
         Response response;
         User user;
 
         try {
-
             user = initData.getUser();
 
-            if ( null != groupId && null != user ) {
-
-                this.notificationAPI.deleteNotification(user.getUserId(), groupId); // todo: include the user id, in order to remove by id.
+            if (null != groupId && null != user) {
+                this.notificationAPI.deleteNotification(
+                        user.getUserId(),
+                        groupId
+                    ); // todo: include the user id, in order to remove by id.
             }
 
-            return Response.ok(new ResponseEntityView(Boolean.TRUE,
-                    list(new MessageEntity(LanguageUtil.get(user.getLocale(),
-                            "notification.success.delete", groupId)))))
-                    .build(); // 200
+            return Response.ok(
+                new ResponseEntityView(
+                    Boolean.TRUE,
+                    list(
+                        new MessageEntity(
+                            LanguageUtil.get(
+                                user.getLocale(),
+                                "notification.success.delete",
+                                groupId
+                            )
+                        )
+                    )
+                )
+            ).build(); // 200
         } catch (Exception e) { // this is an unknown error, so we report as a 500.
-
-            response = ExceptionMapperUtil.createResponse(e, Response.Status.INTERNAL_SERVER_ERROR);
+            response = ExceptionMapperUtil.createResponse(
+                e,
+                Response.Status.INTERNAL_SERVER_ERROR
+            );
         }
 
         return response;
     } // delete.
-
-
 
     /**
      * Delete one or more notifications
@@ -321,39 +391,53 @@ public class NotificationResource {
      */
     @PUT
     @Path("/delete")
-    @Produces ("application/json")
-    public Response delete ( @Context HttpServletRequest httpServletRequest, @Context final HttpServletResponse httpServletResponse, final DeleteForm deleteForm )  {
-
+    @Produces("application/json")
+    public Response delete(
+        @Context HttpServletRequest httpServletRequest,
+        @Context final HttpServletResponse httpServletResponse,
+        final DeleteForm deleteForm
+    ) {
         final InitDataObject initData = new WebResource.InitBuilder(webResource)
-                .requiredBackendUser(true)
-                .requiredFrontendUser(false)
-                .requestAndResponse(httpServletRequest, httpServletResponse)
-                .rejectWhenNoUser(true).init();
+            .requiredBackendUser(true)
+            .requiredFrontendUser(false)
+            .requestAndResponse(httpServletRequest, httpServletResponse)
+            .rejectWhenNoUser(true)
+            .init();
 
         Response response;
         User user;
 
         try {
-
             user = initData.getUser();
 
             if (null != deleteForm.getItems() && null != user) {
-
-                this.notificationAPI.deleteNotifications(user.getUserId(), deleteForm.getItems().toArray(new String[] {}));
+                this.notificationAPI.deleteNotifications(
+                        user.getUserId(),
+                        deleteForm.getItems().toArray(new String[] {})
+                    );
             }
 
-            response =  Response.ok(new ResponseEntityView(Boolean.TRUE,
-                    list(new MessageEntity(LanguageUtil.get(user.getLocale(),
-                            "notifications.success.delete", deleteForm.getItems())))))
-                    .build(); // 200
+            response = Response.ok(
+                new ResponseEntityView(
+                    Boolean.TRUE,
+                    list(
+                        new MessageEntity(
+                            LanguageUtil.get(
+                                user.getLocale(),
+                                "notifications.success.delete",
+                                deleteForm.getItems()
+                            )
+                        )
+                    )
+                )
+            ).build(); // 200
         } catch (Exception e) { // this is an unknown error, so we report as a 500.
-
-            response = ExceptionMapperUtil.createResponse(e, Response.Status.INTERNAL_SERVER_ERROR);
+            response = ExceptionMapperUtil.createResponse(
+                e,
+                Response.Status.INTERNAL_SERVER_ERROR
+            );
         }
 
         return response;
     } // delete.
-
-
-
 }
